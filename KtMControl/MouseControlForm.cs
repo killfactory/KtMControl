@@ -20,6 +20,8 @@ public partial class MouseControlForm : Form
     private const int HotkeyIdNumpad7 = 107;
     private const int HotkeyIdNumpad8 = 108;
     private const int HotkeyIdNumpad9 = 109;
+    private const int HotkeyIdNumpadMultiply = 110;
+    private const int HotkeyIdNumpadDivide = 111;
 
     private const uint VkNumpad1 = 0x61;
     private const uint VkNumpad2 = 0x62;
@@ -30,6 +32,18 @@ public partial class MouseControlForm : Form
     private const uint VkNumpad7 = 0x67;
     private const uint VkNumpad8 = 0x68;
     private const uint VkNumpad9 = 0x69;
+    private const uint VkMultiply = 0x6A;
+    private const uint VkDivide = 0x6F;
+    private const ushort VkLControl = 0xA2;
+    private const ushort VkRControl = 0xA3;
+
+    private const uint InputMouse = 0;
+    private const uint InputKeyboard = 1;
+    private const uint KeyeventfKeyup = 0x0002;
+    private const uint MouseeventfLeftdown = 0x0002;
+    private const uint MouseeventfLeftup = 0x0004;
+    private const uint MouseeventfRightdown = 0x0008;
+    private const uint MouseeventfRightup = 0x0010;
 
     private Rectangle activeArea = Rectangle.Empty;
     private Screen? activeScreen;
@@ -41,6 +55,9 @@ public partial class MouseControlForm : Form
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool UnregisterHotKey(nint hWnd, int id);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint SendInput(uint cInputs, INPUT[] pInputs, int cbSize);
 
     public MouseControlForm()
     {
@@ -61,6 +78,8 @@ public partial class MouseControlForm : Form
         RegisterNumpadHotkey(HotkeyIdNumpad7, VkNumpad7);
         RegisterNumpadHotkey(HotkeyIdNumpad8, VkNumpad8);
         RegisterNumpadHotkey(HotkeyIdNumpad9, VkNumpad9);
+        RegisterNumpadHotkey(HotkeyIdNumpadMultiply, VkMultiply);
+        RegisterNumpadHotkey(HotkeyIdNumpadDivide, VkDivide);
     }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
@@ -74,6 +93,8 @@ public partial class MouseControlForm : Form
         UnregisterHotKey(Handle, HotkeyIdNumpad7);
         UnregisterHotKey(Handle, HotkeyIdNumpad8);
         UnregisterHotKey(Handle, HotkeyIdNumpad9);
+        UnregisterHotKey(Handle, HotkeyIdNumpadMultiply);
+        UnregisterHotKey(Handle, HotkeyIdNumpadDivide);
 
         guidanceOverlayForm.Dispose();
         base.OnFormClosed(e);
@@ -83,7 +104,21 @@ public partial class MouseControlForm : Form
     {
         if (m.Msg == WmHotkey)
         {
-            var keypadNumber = HotkeyIdToKeypadNumber((int)m.WParam);
+            var hotkeyId = (int)m.WParam;
+
+            if (hotkeyId == HotkeyIdNumpadDivide)
+            {
+                PerformLeftClick();
+                return;
+            }
+
+            if (hotkeyId == HotkeyIdNumpadMultiply)
+            {
+                PerformRightClick();
+                return;
+            }
+
+            var keypadNumber = HotkeyIdToKeypadNumber(hotkeyId);
             if (keypadNumber is >= 1 and <= 9)
             {
                 HandleNavigation(keypadNumber.Value);
@@ -114,8 +149,15 @@ public partial class MouseControlForm : Form
         var registered = RegisterHotKey(Handle, hotkeyId, ModControl, virtualKey);
         if (!registered)
         {
+            var hotkeyName = hotkeyId switch
+            {
+                HotkeyIdNumpadMultiply => "Ctrl + NumPad *",
+                HotkeyIdNumpadDivide => "Ctrl + NumPad /",
+                _ => $"Ctrl + NumPad{hotkeyId - 100}"
+            };
+
             MessageBox.Show(
-                $"Could not register Ctrl + NumPad{hotkeyId - 100}. It may already be in use.",
+                $"Could not register {hotkeyName}. It may already be in use.",
                 "Hotkey Registration Failed",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
@@ -135,6 +177,80 @@ public partial class MouseControlForm : Form
         activeScreen = Screen.FromPoint(centerPoint);
 
         guidanceOverlayForm.ShowGuidance(activeScreen, activeArea, ResetToInitialState);
+    }
+
+    private void PerformLeftClick()
+    {
+        SendMouseClick(MouseeventfLeftdown, MouseeventfLeftup);
+        ResetImmediatelyToInitialState();
+    }
+
+    private void PerformRightClick()
+    {
+        SendMouseClick(MouseeventfRightdown, MouseeventfRightup);
+        ResetImmediatelyToInitialState();
+    }
+
+    private static void SendMouseClick(uint mouseDownFlag, uint mouseUpFlag)
+    {
+        var inputs = new[]
+        {
+            CreateKeyboardInput(VkLControl, KeyeventfKeyup),
+            CreateKeyboardInput(VkRControl, KeyeventfKeyup),
+            CreateMouseInput(mouseDownFlag),
+            CreateMouseInput(mouseUpFlag)
+        };
+
+        var sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+        if (sent != inputs.Length)
+        {
+            throw new InvalidOperationException("Failed to send the simulated mouse click.");
+        }
+    }
+
+    private static INPUT CreateKeyboardInput(ushort virtualKey, uint flags)
+    {
+        return new INPUT
+        {
+            type = InputKeyboard,
+            Anonymous = new INPUTUNION
+            {
+                ki = new KEYBDINPUT
+                {
+                    wVk = virtualKey,
+                    wScan = 0,
+                    dwFlags = flags,
+                    time = 0,
+                    dwExtraInfo = nuint.Zero
+                }
+            }
+        };
+    }
+
+    private static INPUT CreateMouseInput(uint flags)
+    {
+        return new INPUT
+        {
+            type = InputMouse,
+            Anonymous = new INPUTUNION
+            {
+                mi = new MOUSEINPUT
+                {
+                    dx = 0,
+                    dy = 0,
+                    mouseData = 0,
+                    dwFlags = flags,
+                    time = 0,
+                    dwExtraInfo = nuint.Zero
+                }
+            }
+        };
+    }
+
+    private void ResetImmediatelyToInitialState()
+    {
+        guidanceOverlayForm.HideGuidance();
+        ResetToInitialState();
     }
 
     private void EnsureActiveArea()
@@ -204,6 +320,44 @@ public partial class MouseControlForm : Form
             _ => throw new ArgumentOutOfRangeException(nameof(keypadNumber))
         };
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct INPUT
+    {
+        public uint type;
+        public INPUTUNION Anonymous;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    private struct INPUTUNION
+    {
+        [FieldOffset(0)]
+        public MOUSEINPUT mi;
+
+        [FieldOffset(0)]
+        public KEYBDINPUT ki;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MOUSEINPUT
+    {
+        public int dx;
+        public int dy;
+        public uint mouseData;
+        public uint dwFlags;
+        public uint time;
+        public nuint dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KEYBDINPUT
+    {
+        public ushort wVk;
+        public ushort wScan;
+        public uint dwFlags;
+        public uint time;
+        public nuint dwExtraInfo;
+    }
 }
 
 internal sealed class GuidanceOverlayForm : Form
@@ -244,6 +398,13 @@ internal sealed class GuidanceOverlayForm : Form
 
         hideTimer.Stop();
         hideTimer.Start();
+    }
+
+    public void HideGuidance()
+    {
+        hideTimer.Stop();
+        activeArea = Rectangle.Empty;
+        Hide();
     }
 
     protected override bool ShowWithoutActivation => true;
