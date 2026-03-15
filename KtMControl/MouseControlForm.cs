@@ -6,6 +6,7 @@ public partial class MouseControlForm : Form
 {
     private readonly Button moveMouseButton = new();
     private readonly GuidanceOverlayForm guidanceOverlayForm = new();
+    private readonly System.Windows.Forms.Timer ctrlStateTimer = new();
 
     private const int WmHotkey = 0x0312;
     private const uint ModAlt = 0x0001;
@@ -34,8 +35,10 @@ public partial class MouseControlForm : Form
     private const uint VkNumpad9 = 0x69;
     private const uint VkMultiply = 0x6A;
     private const uint VkDivide = 0x6F;
+
     private const ushort VkLControl = 0xA2;
     private const ushort VkRControl = 0xA3;
+    private const int VkControl = 0x11;
 
     private const uint InputMouse = 0;
     private const uint InputKeyboard = 1;
@@ -59,10 +62,14 @@ public partial class MouseControlForm : Form
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint cInputs, INPUT[] pInputs, int cbSize);
 
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int vKey);
+
     public MouseControlForm()
     {
         InitializeComponent();
         InitializeMoveMouseButton();
+        InitializeCtrlStateTimer();
     }
 
     protected override void OnHandleCreated(EventArgs e)
@@ -84,6 +91,8 @@ public partial class MouseControlForm : Form
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
+        ctrlStateTimer.Stop();
+
         UnregisterHotKey(Handle, HotkeyIdNumpad1);
         UnregisterHotKey(Handle, HotkeyIdNumpad2);
         UnregisterHotKey(Handle, HotkeyIdNumpad3);
@@ -96,6 +105,7 @@ public partial class MouseControlForm : Form
         UnregisterHotKey(Handle, HotkeyIdNumpadMultiply);
         UnregisterHotKey(Handle, HotkeyIdNumpadDivide);
 
+        ctrlStateTimer.Dispose();
         guidanceOverlayForm.Dispose();
         base.OnFormClosed(e);
     }
@@ -139,9 +149,23 @@ public partial class MouseControlForm : Form
         Controls.Add(moveMouseButton);
     }
 
+    private void InitializeCtrlStateTimer()
+    {
+        ctrlStateTimer.Interval = 25;
+        ctrlStateTimer.Tick += CtrlStateTimer_Tick;
+    }
+
     private void MoveMouseButton_Click(object? sender, EventArgs e)
     {
         HandleNavigation(5);
+    }
+
+    private void CtrlStateTimer_Tick(object? sender, EventArgs e)
+    {
+        if (!IsCtrlCurrentlyDown())
+        {
+            ResetImmediatelyToInitialState();
+        }
     }
 
     private void RegisterNumpadHotkey(int hotkeyId, uint virtualKey)
@@ -176,7 +200,8 @@ public partial class MouseControlForm : Form
         activeArea = nextArea;
         activeScreen = Screen.FromPoint(centerPoint);
 
-        guidanceOverlayForm.ShowGuidance(activeScreen, activeArea, ResetToInitialState);
+        guidanceOverlayForm.ShowGuidance(activeScreen, activeArea);
+        StartCtrlTracking();
     }
 
     private void PerformLeftClick()
@@ -247,8 +272,25 @@ public partial class MouseControlForm : Form
         };
     }
 
+    private void StartCtrlTracking()
+    {
+        if (!ctrlStateTimer.Enabled)
+        {
+            ctrlStateTimer.Start();
+        }
+    }
+
+    private void StopCtrlTracking()
+    {
+        if (ctrlStateTimer.Enabled)
+        {
+            ctrlStateTimer.Stop();
+        }
+    }
+
     private void ResetImmediatelyToInitialState()
     {
+        StopCtrlTracking();
         guidanceOverlayForm.HideGuidance();
         ResetToInitialState();
     }
@@ -268,6 +310,11 @@ public partial class MouseControlForm : Form
         var mousePosition = Cursor.Position;
         activeScreen = Screen.FromPoint(mousePosition);
         activeArea = activeScreen.Bounds;
+    }
+
+    private static bool IsCtrlCurrentlyDown()
+    {
+        return (GetAsyncKeyState(VkControl) & 0x8000) != 0;
     }
 
     private static Point GetRectangleCenter(Rectangle rectangle)
@@ -362,9 +409,7 @@ public partial class MouseControlForm : Form
 
 internal sealed class GuidanceOverlayForm : Form
 {
-    private readonly System.Windows.Forms.Timer hideTimer = new();
     private Rectangle activeArea = Rectangle.Empty;
-    private Action? onGuidanceHidden;
 
     public bool IsGuidanceVisible => Visible;
 
@@ -377,16 +422,12 @@ internal sealed class GuidanceOverlayForm : Form
         BackColor = Color.Magenta;
         TransparencyKey = Color.Magenta;
         DoubleBuffered = true;
-
-        hideTimer.Interval = 1000;
-        hideTimer.Tick += HideTimer_Tick;
     }
 
-    public void ShowGuidance(Screen screen, Rectangle area, Action onHidden)
+    public void ShowGuidance(Screen screen, Rectangle area)
     {
         Bounds = screen.Bounds;
         activeArea = area;
-        onGuidanceHidden = onHidden;
 
         if (!Visible)
         {
@@ -395,14 +436,10 @@ internal sealed class GuidanceOverlayForm : Form
 
         BringToFront();
         Invalidate();
-
-        hideTimer.Stop();
-        hideTimer.Start();
     }
 
     public void HideGuidance()
     {
-        hideTimer.Stop();
         activeArea = Rectangle.Empty;
         Hide();
     }
@@ -448,24 +485,5 @@ internal sealed class GuidanceOverlayForm : Form
         e.Graphics.DrawLine(pen, x2, localArea.Top, x2, localArea.Bottom);
         e.Graphics.DrawLine(pen, localArea.Left, y1, localArea.Right, y1);
         e.Graphics.DrawLine(pen, localArea.Left, y2, localArea.Right, y2);
-    }
-
-    private void HideTimer_Tick(object? sender, EventArgs e)
-    {
-        hideTimer.Stop();
-        activeArea = Rectangle.Empty;
-        Hide();
-        onGuidanceHidden?.Invoke();
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            hideTimer.Tick -= HideTimer_Tick;
-            hideTimer.Dispose();
-        }
-
-        base.Dispose(disposing);
     }
 }
