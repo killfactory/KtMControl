@@ -218,19 +218,44 @@ public partial class MouseControlForm : Form
 
     private static void SendMouseClick(uint mouseDownFlag, uint mouseUpFlag)
     {
-        var inputs = new[]
-        {
-            CreateKeyboardInput(VkLControl, KeyeventfKeyup),
-            CreateKeyboardInput(VkRControl, KeyeventfKeyup),
-            CreateMouseInput(mouseDownFlag),
-            CreateMouseInput(mouseUpFlag)
-        };
+        var leftCtrlWasDown = IsVirtualKeyDown(VkLControl);
+        var rightCtrlWasDown = IsVirtualKeyDown(VkRControl);
 
-        var sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
-        if (sent != inputs.Length)
+        var inputs = new List<INPUT>();
+
+        if (leftCtrlWasDown)
+        {
+            inputs.Add(CreateKeyboardInput(VkLControl, KeyeventfKeyup));
+        }
+
+        if (rightCtrlWasDown)
+        {
+            inputs.Add(CreateKeyboardInput(VkRControl, KeyeventfKeyup));
+        }
+
+        inputs.Add(CreateMouseInput(mouseDownFlag));
+        inputs.Add(CreateMouseInput(mouseUpFlag));
+
+        if (leftCtrlWasDown)
+        {
+            inputs.Add(CreateKeyboardInput(VkLControl, 0));
+        }
+
+        if (rightCtrlWasDown)
+        {
+            inputs.Add(CreateKeyboardInput(VkRControl, 0));
+        }
+
+        var sent = SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf<INPUT>());
+        if (sent != inputs.Count)
         {
             throw new InvalidOperationException("Failed to send the simulated mouse click.");
         }
+    }
+
+    private static bool IsVirtualKeyDown(int virtualKey)
+    {
+        return (GetAsyncKeyState(virtualKey) & 0x8000) != 0;
     }
 
     private static INPUT CreateKeyboardInput(ushort virtualKey, uint flags)
@@ -314,7 +339,7 @@ public partial class MouseControlForm : Form
 
     private static bool IsCtrlCurrentlyDown()
     {
-        return (GetAsyncKeyState(VkControl) & 0x8000) != 0;
+        return IsVirtualKeyDown(VkControl);
     }
 
     private static Point GetRectangleCenter(Rectangle rectangle)
