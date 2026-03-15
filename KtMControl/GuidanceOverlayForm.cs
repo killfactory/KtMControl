@@ -5,7 +5,7 @@ using System.Drawing.Text;
 
 internal sealed class GuidanceOverlayForm : Form
 {
-    private Rectangle activeArea = Rectangle.Empty;
+    private Rectangle _activeArea = Rectangle.Empty;
 
     public bool IsGuidanceVisible => Visible;
 
@@ -23,7 +23,7 @@ internal sealed class GuidanceOverlayForm : Form
     public void ShowGuidance(Screen screen, Rectangle area)
     {
         Bounds = screen.Bounds;
-        activeArea = area;
+        _activeArea = area;
 
         if (!Visible)
         {
@@ -36,7 +36,7 @@ internal sealed class GuidanceOverlayForm : Form
 
     public void HideGuidance()
     {
-        activeArea = Rectangle.Empty;
+        _activeArea = Rectangle.Empty;
         Hide();
     }
 
@@ -59,7 +59,7 @@ internal sealed class GuidanceOverlayForm : Form
     {
         base.OnPaint(e);
 
-        if (activeArea == Rectangle.Empty)
+        if (_activeArea == Rectangle.Empty)
         {
             return;
         }
@@ -67,27 +67,25 @@ internal sealed class GuidanceOverlayForm : Form
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         e.Graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
 
-        var localArea = new Rectangle(
-            activeArea.Left - Bounds.Left,
-            activeArea.Top - Bounds.Top,
-            activeArea.Width,
-            activeArea.Height);
+        var localArea = _activeArea with { X = _activeArea.Left - Bounds.Left, Y = _activeArea.Top - Bounds.Top };
 
         var x1 = localArea.Left + localArea.Width / 3;
         var x2 = localArea.Left + (2 * localArea.Width) / 3;
         var y1 = localArea.Top + localArea.Height / 3;
         var y2 = localArea.Top + (2 * localArea.Height) / 3;
 
-        using var pen = new Pen(Color.Red, 2);
+        var cellWidth = localArea.Width / 3f;
+        var cellHeight = localArea.Height / 3f;
+        var guideFontSize = cellHeight * 0.5f;
+
+        var lineWidth = GetLineWidth(guideFontSize);
+        using var pen = new Pen(Color.Red, lineWidth);
 
         e.Graphics.DrawLine(pen, x1, localArea.Top, x1, localArea.Bottom);
         e.Graphics.DrawLine(pen, x2, localArea.Top, x2, localArea.Bottom);
         e.Graphics.DrawLine(pen, localArea.Left, y1, localArea.Right, y1);
         e.Graphics.DrawLine(pen, localArea.Left, y2, localArea.Right, y2);
-
-        var cellWidth = localArea.Width / 3f;
-        var cellHeight = localArea.Height / 3f;
-        var guideFontSize = cellHeight * 0.5f;
+        
         if (guideFontSize > 8) {
             DrawOutlinedNumber(e.Graphics, "7", new RectangleF(localArea.Left + (0 * cellWidth), localArea.Top + (0 * cellHeight), cellWidth, cellHeight), guideFontSize);
             DrawOutlinedNumber(e.Graphics, "8", new RectangleF(localArea.Left + (1 * cellWidth), localArea.Top + (0 * cellHeight), cellWidth, cellHeight), guideFontSize);
@@ -99,27 +97,21 @@ internal sealed class GuidanceOverlayForm : Form
             DrawOutlinedNumber(e.Graphics, "2", new RectangleF(localArea.Left + (1 * cellWidth), localArea.Top + (2 * cellHeight), cellWidth, cellHeight), guideFontSize);
             DrawOutlinedNumber(e.Graphics, "3", new RectangleF(localArea.Left + (2 * cellWidth), localArea.Top + (2 * cellHeight), cellWidth, cellHeight), guideFontSize);
         }
-        
-        var zeroFontSize = Bounds.Height * 0.5f / 3;
-        DrawOutlinedNumber(
-            e.Graphics,
-            "0",
-            new RectangleF(0, 0, Bounds.Width, Bounds.Height),
-            zeroFontSize);
+    }
+
+    public static int GetLineWidth(float guideFontSize)
+    {
+        return Math.Max((int) guideFontSize / 75, 1);
     }
 
     private static void DrawOutlinedNumber(Graphics graphics, string text, RectangleF bounds, float fontSize)
     {
         using var path = new GraphicsPath();
-        using var format = new StringFormat
-        {
-            Alignment = StringAlignment.Center,
-            LineAlignment = StringAlignment.Center
-        };
-        using var outlinePen = new Pen(Color.Red, 1)
-        {
-            LineJoin = LineJoin.Round
-        };
+        using var format = new StringFormat();
+        format.Alignment = StringAlignment.Center;
+        format.LineAlignment = StringAlignment.Center;
+        using var outlinePen = new Pen(Color.Red, GetLineWidth(fontSize));
+        outlinePen.LineJoin = LineJoin.Round;
 
         path.AddString(
             text,

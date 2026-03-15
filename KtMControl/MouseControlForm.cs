@@ -5,6 +5,7 @@ namespace KtMControl;
 public partial class MouseControlForm : Form
 {
     private readonly GuidanceOverlayForm guidanceOverlayForm = new();
+    private readonly NextScreenGuidanceOverlayForm nextScreenGuidanceOverlayForm = new();
     private readonly System.Windows.Forms.Timer ctrlStateTimer = new();
     private readonly NotifyIcon trayIcon = new();
     private readonly ContextMenuStrip trayMenu = new();
@@ -139,6 +140,7 @@ public partial class MouseControlForm : Form
         trayMenu.Dispose();
         ctrlStateTimer.Dispose();
         guidanceOverlayForm.Dispose();
+        nextScreenGuidanceOverlayForm.Dispose();
 
         base.OnFormClosed(e);
     }
@@ -249,6 +251,11 @@ public partial class MouseControlForm : Form
         activeScreen = Screen.FromPoint(centerPoint);
 
         guidanceOverlayForm.ShowGuidance(activeScreen, activeArea);
+        if (TryDetermineNextScreen(out var nextScreen) && !Equals(nextScreen, activeScreen))
+        {
+            nextScreenGuidanceOverlayForm.ShowGuidance(nextScreen);
+        }
+
         StartCtrlTracking();
     }
 
@@ -256,10 +263,24 @@ public partial class MouseControlForm : Form
     {
         EnsureActiveArea();
 
+        if (!TryDetermineNextScreen(out activeScreen)) return;
+        activeArea = activeScreen.Bounds;
+
+        guidanceOverlayForm.ShowGuidance(activeScreen, activeArea);        
+        if (TryDetermineNextScreen(out var nextScreen) && !Equals(nextScreen, activeScreen))
+        {
+            nextScreenGuidanceOverlayForm.ShowGuidance(nextScreen);
+        }
+        StartCtrlTracking();
+    }
+
+    private bool TryDetermineNextScreen(out Screen nextScreen)
+    {
         var screens = Screen.AllScreens;
         if (screens.Length == 0)
         {
-            return;
+            nextScreen = null;
+            return false;
         }
 
         var currentScreenIndex = Array.FindIndex(
@@ -274,11 +295,8 @@ public partial class MouseControlForm : Form
         }
 
         var nextScreenIndex = (currentScreenIndex + 1 + screens.Length) % screens.Length;
-        activeScreen = screens[nextScreenIndex];
-        activeArea = activeScreen.Bounds;
-
-        guidanceOverlayForm.ShowGuidance(activeScreen, activeArea);
-        StartCtrlTracking();
+        nextScreen = screens[nextScreenIndex];
+        return true;
     }
 
     private void PerformLeftClick()
@@ -400,6 +418,7 @@ public partial class MouseControlForm : Form
     {
         StopCtrlTracking();
         guidanceOverlayForm.HideGuidance();
+        nextScreenGuidanceOverlayForm.HideGuidance();
         ResetToInitialState();
     }
 
