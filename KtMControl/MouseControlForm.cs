@@ -25,6 +25,7 @@ public partial class MouseControlForm : Form
     private const int HotkeyIdNumpad9 = 109;
     private const int HotkeyIdNumpadMultiply = 110;
     private const int HotkeyIdNumpadDivide = 111;
+    private const int HotkeyIdNumpadSubtract = 112;
 
     private const uint VkNumpad1 = 0x61;
     private const uint VkNumpad2 = 0x62;
@@ -36,6 +37,7 @@ public partial class MouseControlForm : Form
     private const uint VkNumpad8 = 0x68;
     private const uint VkNumpad9 = 0x69;
     private const uint VkMultiply = 0x6A;
+    private const uint VkSubtract = 0x6D;
     private const uint VkDivide = 0x6F;
 
     private const ushort VkLControl = 0xA2;
@@ -49,6 +51,8 @@ public partial class MouseControlForm : Form
     private const uint MouseeventfLeftup = 0x0004;
     private const uint MouseeventfRightdown = 0x0008;
     private const uint MouseeventfRightup = 0x0010;
+    private const uint MouseeventfMiddledown = 0x0020;
+    private const uint MouseeventfMiddleup = 0x0040;
 
     private Rectangle activeArea = Rectangle.Empty;
     private Screen? activeScreen;
@@ -105,6 +109,7 @@ public partial class MouseControlForm : Form
         RegisterNumpadHotkey(HotkeyIdNumpad9, VkNumpad9);
         RegisterNumpadHotkey(HotkeyIdNumpadMultiply, VkMultiply);
         RegisterNumpadHotkey(HotkeyIdNumpadDivide, VkDivide);
+        RegisterNumpadHotkey(HotkeyIdNumpadSubtract, VkSubtract);
     }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
@@ -122,6 +127,7 @@ public partial class MouseControlForm : Form
         UnregisterHotKey(Handle, HotkeyIdNumpad9);
         UnregisterHotKey(Handle, HotkeyIdNumpadMultiply);
         UnregisterHotKey(Handle, HotkeyIdNumpadDivide);
+        UnregisterHotKey(Handle, HotkeyIdNumpadSubtract);
 
         trayIcon.Visible = false;
         exitMenuItem.Click -= ExitMenuItem_Click;
@@ -145,9 +151,15 @@ public partial class MouseControlForm : Form
                 return;
             }
 
-            if (hotkeyId == HotkeyIdNumpadMultiply)
+            if (hotkeyId == HotkeyIdNumpadSubtract)
             {
                 PerformRightClick();
+                return;
+            }
+
+            if (hotkeyId == HotkeyIdNumpadMultiply)
+            {
+                PerformMiddleClick();
                 return;
             }
 
@@ -201,6 +213,7 @@ public partial class MouseControlForm : Form
             {
                 HotkeyIdNumpadMultiply => "Ctrl + NumPad *",
                 HotkeyIdNumpadDivide => "Ctrl + NumPad /",
+                HotkeyIdNumpadSubtract => "Ctrl + NumPad -",
                 _ => $"Ctrl + NumPad{hotkeyId - 100}"
             };
 
@@ -237,6 +250,12 @@ public partial class MouseControlForm : Form
     private void PerformRightClick()
     {
         SendMouseClick(MouseeventfRightdown, MouseeventfRightup);
+        ResetImmediatelyToInitialState();
+    }
+
+    private void PerformMiddleClick()
+    {
+        SendMouseClick(MouseeventfMiddledown, MouseeventfMiddleup);
         ResetImmediatelyToInitialState();
     }
 
