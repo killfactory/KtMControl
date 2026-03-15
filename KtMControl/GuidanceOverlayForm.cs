@@ -1,5 +1,8 @@
 ﻿namespace KtMControl;
 
+using System.Drawing.Drawing2D;
+using System.Drawing.Text;
+
 internal sealed class GuidanceOverlayForm : Form
 {
     private Rectangle activeArea = Rectangle.Empty;
@@ -61,6 +64,9 @@ internal sealed class GuidanceOverlayForm : Form
             return;
         }
 
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        e.Graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+
         var localArea = new Rectangle(
             activeArea.Left - Bounds.Left,
             activeArea.Top - Bounds.Top,
@@ -78,5 +84,51 @@ internal sealed class GuidanceOverlayForm : Form
         e.Graphics.DrawLine(pen, x2, localArea.Top, x2, localArea.Bottom);
         e.Graphics.DrawLine(pen, localArea.Left, y1, localArea.Right, y1);
         e.Graphics.DrawLine(pen, localArea.Left, y2, localArea.Right, y2);
+
+        var cellWidth = localArea.Width / 3f;
+        var cellHeight = localArea.Height / 3f;
+        var guideFontSize = cellHeight * 0.5f;
+        if (guideFontSize > 8) {
+            DrawOutlinedNumber(e.Graphics, "7", new RectangleF(localArea.Left + (0 * cellWidth), localArea.Top + (0 * cellHeight), cellWidth, cellHeight), guideFontSize);
+            DrawOutlinedNumber(e.Graphics, "8", new RectangleF(localArea.Left + (1 * cellWidth), localArea.Top + (0 * cellHeight), cellWidth, cellHeight), guideFontSize);
+            DrawOutlinedNumber(e.Graphics, "9", new RectangleF(localArea.Left + (2 * cellWidth), localArea.Top + (0 * cellHeight), cellWidth, cellHeight), guideFontSize);
+            DrawOutlinedNumber(e.Graphics, "4", new RectangleF(localArea.Left + (0 * cellWidth), localArea.Top + (1 * cellHeight), cellWidth, cellHeight), guideFontSize);
+            DrawOutlinedNumber(e.Graphics, "5", new RectangleF(localArea.Left + (1 * cellWidth), localArea.Top + (1 * cellHeight), cellWidth, cellHeight), guideFontSize);
+            DrawOutlinedNumber(e.Graphics, "6", new RectangleF(localArea.Left + (2 * cellWidth), localArea.Top + (1 * cellHeight), cellWidth, cellHeight), guideFontSize);
+            DrawOutlinedNumber(e.Graphics, "1", new RectangleF(localArea.Left + (0 * cellWidth), localArea.Top + (2 * cellHeight), cellWidth, cellHeight), guideFontSize);
+            DrawOutlinedNumber(e.Graphics, "2", new RectangleF(localArea.Left + (1 * cellWidth), localArea.Top + (2 * cellHeight), cellWidth, cellHeight), guideFontSize);
+            DrawOutlinedNumber(e.Graphics, "3", new RectangleF(localArea.Left + (2 * cellWidth), localArea.Top + (2 * cellHeight), cellWidth, cellHeight), guideFontSize);
+        }
+        
+        var zeroFontSize = Bounds.Height * 0.5f / 3;
+        DrawOutlinedNumber(
+            e.Graphics,
+            "0",
+            new RectangleF(0, 0, Bounds.Width, Bounds.Height),
+            zeroFontSize);
+    }
+
+    private static void DrawOutlinedNumber(Graphics graphics, string text, RectangleF bounds, float fontSize)
+    {
+        using var path = new GraphicsPath();
+        using var format = new StringFormat
+        {
+            Alignment = StringAlignment.Center,
+            LineAlignment = StringAlignment.Center
+        };
+        using var outlinePen = new Pen(Color.Red, 1)
+        {
+            LineJoin = LineJoin.Round
+        };
+
+        path.AddString(
+            text,
+            FontFamily.GenericSansSerif,
+            (int)FontStyle.Bold,
+            fontSize,
+            bounds,
+            format);
+
+        graphics.DrawPath(outlinePen, path);
     }
 }
