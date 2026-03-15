@@ -73,6 +73,7 @@ public partial class MouseControlForm : Form
         InitializeComponent();
         ShowInTaskbar = false;
         WindowState = FormWindowState.Minimized;
+        Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
 
         InitializeCtrlStateTimer();
         InitializeTrayIcon();
@@ -173,7 +174,7 @@ public partial class MouseControlForm : Form
         trayMenu.Items.Add(exitMenuItem);
 
         trayIcon.Text = "KtMControl";
-        trayIcon.Icon = SystemIcons.Application;
+        trayIcon.Icon = Icon ?? SystemIcons.Application;
         trayIcon.ContextMenuStrip = trayMenu;
         trayIcon.Visible = true;
     }
