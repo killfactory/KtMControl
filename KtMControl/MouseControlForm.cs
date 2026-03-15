@@ -14,6 +14,7 @@ public partial class MouseControlForm : Form
     private const uint ModAlt = 0x0001;
     private const uint ModControl = 0x0002;
 
+    private const int HotkeyIdNumpad0 = 100;
     private const int HotkeyIdNumpad1 = 101;
     private const int HotkeyIdNumpad2 = 102;
     private const int HotkeyIdNumpad3 = 103;
@@ -27,6 +28,7 @@ public partial class MouseControlForm : Form
     private const int HotkeyIdNumpadDivide = 111;
     private const int HotkeyIdNumpadSubtract = 112;
 
+    private const uint VkNumpad0 = 0x60;
     private const uint VkNumpad1 = 0x61;
     private const uint VkNumpad2 = 0x62;
     private const uint VkNumpad3 = 0x63;
@@ -98,6 +100,7 @@ public partial class MouseControlForm : Form
     {
         base.OnHandleCreated(e);
 
+        RegisterNumpadHotkey(HotkeyIdNumpad0, VkNumpad0);
         RegisterNumpadHotkey(HotkeyIdNumpad1, VkNumpad1);
         RegisterNumpadHotkey(HotkeyIdNumpad2, VkNumpad2);
         RegisterNumpadHotkey(HotkeyIdNumpad3, VkNumpad3);
@@ -116,6 +119,7 @@ public partial class MouseControlForm : Form
     {
         ctrlStateTimer.Stop();
 
+        UnregisterHotKey(Handle, HotkeyIdNumpad0);
         UnregisterHotKey(Handle, HotkeyIdNumpad1);
         UnregisterHotKey(Handle, HotkeyIdNumpad2);
         UnregisterHotKey(Handle, HotkeyIdNumpad3);
@@ -144,6 +148,12 @@ public partial class MouseControlForm : Form
         if (m.Msg == WmHotkey)
         {
             var hotkeyId = (int)m.WParam;
+
+            if (hotkeyId == HotkeyIdNumpad0)
+            {
+                CycleToNextScreen();
+                return;
+            }
 
             if (hotkeyId == HotkeyIdNumpadDivide)
             {
@@ -211,6 +221,7 @@ public partial class MouseControlForm : Form
         {
             var hotkeyName = hotkeyId switch
             {
+                HotkeyIdNumpad0 => "Ctrl + NumPad0",
                 HotkeyIdNumpadMultiply => "Ctrl + NumPad *",
                 HotkeyIdNumpadDivide => "Ctrl + NumPad /",
                 HotkeyIdNumpadSubtract => "Ctrl + NumPad -",
@@ -236,6 +247,35 @@ public partial class MouseControlForm : Form
 
         activeArea = nextArea;
         activeScreen = Screen.FromPoint(centerPoint);
+
+        guidanceOverlayForm.ShowGuidance(activeScreen, activeArea);
+        StartCtrlTracking();
+    }
+
+    private void CycleToNextScreen()
+    {
+        EnsureActiveArea();
+
+        var screens = Screen.AllScreens;
+        if (screens.Length == 0)
+        {
+            return;
+        }
+
+        var currentScreenIndex = Array.FindIndex(
+            screens,
+            screen => activeScreen is not null && screen.DeviceName == activeScreen.DeviceName);
+
+        if (currentScreenIndex < 0)
+        {
+            currentScreenIndex = Array.FindIndex(
+                screens,
+                screen => screen.Bounds == Screen.FromPoint(Cursor.Position).Bounds);
+        }
+
+        var nextScreenIndex = (currentScreenIndex + 1 + screens.Length) % screens.Length;
+        activeScreen = screens[nextScreenIndex];
+        activeArea = activeScreen.Bounds;
 
         guidanceOverlayForm.ShowGuidance(activeScreen, activeArea);
         StartCtrlTracking();
