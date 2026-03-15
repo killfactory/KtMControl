@@ -4,7 +4,6 @@ namespace KtMControl;
 
 public partial class MouseControlForm : Form
 {
-    private readonly Button moveMouseButton = new();
     private readonly GuidanceOverlayForm guidanceOverlayForm = new();
     private readonly System.Windows.Forms.Timer ctrlStateTimer = new();
     private readonly NotifyIcon trayIcon = new();
@@ -53,6 +52,7 @@ public partial class MouseControlForm : Form
 
     private Rectangle activeArea = Rectangle.Empty;
     private Screen? activeScreen;
+    private bool hideOnFirstShown = true;
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -71,9 +71,22 @@ public partial class MouseControlForm : Form
     public MouseControlForm()
     {
         InitializeComponent();
-        InitializeMoveMouseButton();
+        ShowInTaskbar = false;
+        WindowState = FormWindowState.Minimized;
+
         InitializeCtrlStateTimer();
         InitializeTrayIcon();
+    }
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+
+        if (hideOnFirstShown)
+        {
+            hideOnFirstShown = false;
+            Hide();
+        }
     }
 
     protected override void OnHandleCreated(EventArgs e)
@@ -91,7 +104,7 @@ public partial class MouseControlForm : Form
         RegisterNumpadHotkey(HotkeyIdNumpad9, VkNumpad9);
         RegisterNumpadHotkey(HotkeyIdNumpadMultiply, VkMultiply);
         RegisterNumpadHotkey(HotkeyIdNumpadDivide, VkDivide);
-    }    
+    }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
@@ -148,16 +161,6 @@ public partial class MouseControlForm : Form
         base.WndProc(ref m);
     }
 
-    private void InitializeMoveMouseButton()
-    {
-        moveMouseButton.Text = "Start drill-down (NumPad 5)";
-        moveMouseButton.AutoSize = true;
-        moveMouseButton.Location = new Point(20, 20);
-        moveMouseButton.Click += MoveMouseButton_Click;
-
-        Controls.Add(moveMouseButton);
-    }
-
     private void InitializeCtrlStateTimer()
     {
         ctrlStateTimer.Interval = 25;
@@ -173,11 +176,6 @@ public partial class MouseControlForm : Form
         trayIcon.Icon = SystemIcons.Application;
         trayIcon.ContextMenuStrip = trayMenu;
         trayIcon.Visible = true;
-    }
-
-    private void MoveMouseButton_Click(object? sender, EventArgs e)
-    {
-        HandleNavigation(5);
     }
 
     private void CtrlStateTimer_Tick(object? sender, EventArgs e)
