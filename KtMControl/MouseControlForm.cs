@@ -281,7 +281,7 @@ internal sealed class GuidanceOverlayForm : Form
         var y1 = localArea.Top + localArea.Height / 3;
         var y2 = localArea.Top + (2 * localArea.Height) / 3;
 
-        using var pen = new Pen(Color.Red, 1);
+        using var pen = new Pen(Color.Red, 2);
 
         e.Graphics.DrawLine(pen, x1, localArea.Top, x1, localArea.Bottom);
         e.Graphics.DrawLine(pen, x2, localArea.Top, x2, localArea.Bottom);
